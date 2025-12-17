@@ -1,0 +1,23 @@
+trigger: none
+pool: project01-pool
+steps:
+- task: TerraformTask@5
+  displayName: terraform-int
+  inputs:
+    provider: 'azurerm'
+    command: 'init'
+    workingDirectory: '$(System.DefaultWorkingDirectory)/Environment/prod'
+    backendAzureRmUseEntraIdForAuthentication: false
+    backendServiceArm: 'project01-sp'
+    backendAzureRmResourceGroupName: 'vivek-storage-account-rg'
+    backendAzureRmStorageAccountName: 'storage285002'
+    backendAzureRmContainerName: 'container1'
+    backendAzureRmKey: 'vivek.tfstate02'
+- task: TerraformTask@5
+  displayName: terraform-destroy
+  inputs:
+    provider: 'azurerm'
+    command: 'destroy'
+    workingDirectory: '$(System.DefaultWorkingDirectory)/Environment/prod'
+    commandOptions: '--auto-approve'
+    environmentServiceNameAzureRM: 'project01-sp'
