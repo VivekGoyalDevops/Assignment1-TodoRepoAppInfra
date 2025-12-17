@@ -1,0 +1,91 @@
+name: Azure-Infra-Deploy
+trigger:  
+- master
+- feature/*
+
+pool:  project01-pool
+variables:
+  SERVICE_PRINCIPAL: 'vivek-sp'
+  WORKING_DIR: '$(System.DefaultWorkingDirectory)/Environment/prod'
+  STORAGE_ACC: 'storage285002'
+stages:
+- stage: stage_build_Plan
+  displayName: stage build Plan
+  jobs:
+  - job: job_build_plan
+    displayName: job build plan
+    steps:
+
+    - task: TerraformTask@5
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(WORKING_DIR)'
+        backendAzureRmUseEntraIdForAuthentication: false
+        backendServiceArm: '$(SERVICE_PRINCIPAL)'
+        backendAzureRmResourceGroupName: 'vivek-storage-account-rg'
+        backendAzureRmStorageAccountName: '$(STORAGE_ACC)'
+        backendAzureRmContainerName: 'container1'
+        backendAzureRmKey: 'vivek.tfstate02'
+    - task: TerraformTask@5
+      displayName: Task-Terraform-validate
+      inputs:
+        provider: 'azurerm'
+        command: 'validate'
+        workingDirectory: '$(WORKING_DIR)'
+    - task: TerraformTask@5
+      displayName: Task-Terraform-fmt
+      inputs:
+        provider: 'azurerm'
+        command: 'custom'
+        workingDirectory: '$(WORKING_DIR)'
+        outputTo: 'console'
+        customCommand: 'fmt'
+        environmentServiceNameAzureRM: '$(SERVICE_PRINCIPAL)'
+    - task: TerraformTask@5
+      displayName: Task-Terraform-plan
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: '$(WORKING_DIR)'
+        environmentServiceNameAzureRM: '$(SERVICE_PRINCIPAL)'
+
+- stage: stage_manual_approval
+  displayName: stage manual approval
+  dependsOn: [stage_build_Plan]
+  jobs:
+  - job: job_manual_approval
+    displayName: job manual approval
+    pool: server
+    steps:
+    - task: ManualValidation@1
+      inputs:
+        notifyUsers: 'abc@gmail.com'
+
+- stage: stage_deploy
+  displayName: stage deploy
+  dependsOn: [stage_manual_approval]
+  jobs:
+  - job: job_Deploy
+    displayName: job deploy
+    steps:  
+    - task: TerraformTask@5
+      displayName: Task-Terraform-init
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(WORKING_DIR)'
+        backendAzureRmUseEntraIdForAuthentication: false
+        backendServiceArm: '$(SERVICE_PRINCIPAL)'
+        backendAzureRmResourceGroupName: 'vivek-storage-account-rg'
+        backendAzureRmStorageAccountName: '$(STORAGE_ACC)'
+        backendAzureRmContainerName: 'container1'
+        backendAzureRmKey: 'vivek.tfstate02'
+    - task: TerraformTask@5
+      displayName: Task-Terraform-apply
+      condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(WORKING_DIR)'
+        environmentServiceNameAzureRM: '$(SERVICE_PRINCIPAL)'
